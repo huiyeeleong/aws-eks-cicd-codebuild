@@ -45,7 +45,33 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
 
     const project = new codebuild.Project(this, 'MyProject',{
       projectName: `${stackName}`,
-      
+      source: codebuild.Source.codeCommit({ repository }),
+      environment: {
+        buildImage: codebuild.LinuxBuildImage.fromAsset(this, 'CustomImage', {
+          directory: path.join(__dirname, '../dockerAssets.d'),
+        }),
+        privileged: true,
+      },
+      environmentVariables: {
+        CLUSTER_NAME: {
+          value: `${cluster.clusterName}`,
+        },
+        ECR_REPO_URI:{
+          value: `${ecrRepo.repositoryUri}`,
+        },
+      },
+      buildSpec: codebuild.BuildSpec.fromObject({
+        version: '0.2',
+        phases: {
+          pre_build:{
+            commands: [
+              'env',
+              'export TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}',
+            ]
+          }
+        }
+      })
+
     })
 
 
