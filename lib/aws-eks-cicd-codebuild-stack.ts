@@ -1,16 +1,53 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as path from 'path';
+import {
+  Stack, App, CfnOutput,
+  aws_codebuild as codebuild,
+  aws_codecommit as codecommit,
+  aws_ec2 as ec2,
+  aws_ecr as ecr,
+  aws_eks as eks,
+  aws_events_targets as targets,
+  aws_iam as iam,
+} from 'aws-cdk-lib';
+import { Cluster } from 'aws-cdk-lib/aws-ecs';
+import { DefaultCapacityType } from 'aws-cdk-lib/aws-eks';
 
 export class AwsEksCicdCodebuildStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
+    function getOrCreateVpc(scope: Construct): ec2.IVpc {
+      // use an existing vpc or create a new one
+      return scope.node.tryGetContext('use_default_vpc') === '1'
+        || process.env.CDK_USE_DEFAULT_VPC === '1' ? ec2.Vpc.fromLookup(scope, 'Vpc', { isDefault: true }) :
+        scope.node.tryGetContext('use_vpc_id') ?
+          ec2.Vpc.fromLookup(scope, 'Vpc', { vpcId: scope.node.tryGetContext('use_vpc_id') }) :
+          new ec2.Vpc(scope, 'Vpc', { maxAzs: 3, natGateways: 1 });
+    }
+    
+    const vpc = getOrCreateVpc(this);
+    const cluster = new eks.Cluster(this, 'Cluster',{
+      vpc,
+      version: eks.KubernetesVersion.V1_23,
+      defaultCapacity:2,
+    });
 
-    // example resource
-    // const queue = new sqs.Queue(this, 'AwsEksCicdCodebuildQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    //fetch current stack name
+    const stackName = Stack.of(this).stackName;
+
+    const ecrRepo = new ecr.Repository(this , 'EcrRepo');
+
+    const repository = new codecommit.Repository(this, 'CodeCommitRepo', {
+      repositoryName: `${stackName}-repo`,
+    });
+
+    const project = new codebuild.Project(this, 'MyProject',{
+      projectName: `${stackName}`,
+      
+    })
+
+
   }
 }
