@@ -67,13 +67,38 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
             commands: [
               'env',
               'export TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}',
-            ]
-          }
-        }
-      })
+              'export AWS_ACCOUNT_ID=${aws sts get-caller-identity --query Account --output=text}',
+              '/usr/local/bin/entrypoint.sh',
+              'echo Logging in to Amazon ECR',
+              'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com',
+            ],
+          },
+          build: {
+            commands: [
+              'cd flask-docker-app',
+              'docker build -t $ECR_REPO_URI:$TAG .',
+              'docker push $ECR_REPO_URI:$TAG',
+            ],
+          },
+          post_build:{
+            commands: [
+              'kubectl get no',
+              'kubectl set image deployment flask-deployment flask=$ECR_REPO_URI:$TAG',
+            ],
+          },
+        },
+      }),
+    });
 
-    })
+    repository.onCommit('OnCommit', {
+      target: new targets.CodeBuildProject(project),
+    });
 
-
+    ecrRepo.grantPullPush(project.role!);
+    cluster.awsAuth.addMastersRole(project.role!);
+    project.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['eks:DescribeCluster'],
+      resources: [`${cluster.clusterArn}`],
+    }))
   }
 }
