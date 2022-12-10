@@ -48,7 +48,7 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
       source: codebuild.Source.codeCommit({ repository }),
       environment: {
         buildImage: codebuild.LinuxBuildImage.fromAsset(this, 'CustomImage', {
-          directory: path.join(__dirname, '../dockerAssets.d'),
+          directory: path.join(__dirname, '../dockerAsset.d'),
         }),
         privileged: true,
       },
@@ -99,6 +99,24 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
     project.addToRolePolicy(new iam.PolicyStatement({
       actions: ['eks:DescribeCluster'],
       resources: [`${cluster.clusterArn}`],
-    }))
+    }));
+
+    new CfnOutput(this, 'CodeCommitRepoName', {value: `${repository.repositoryName}`});
+    new CfnOutput(this, 'CodeCommitRepoArn', {value: `${repository.repositoryArn}`});
+    new CfnOutput(this, 'CodeCommitCloneUrlSsh', { value: `${repository.repositoryCloneUrlSsh}` });
+    new CfnOutput(this, 'CodeCommitCloneUrlHttp', { value: `${repository.repositoryCloneUrlHttp}` });
   }
 }
+
+const app = new App();
+
+const env = {
+  region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+  account: process.env.CDK_DEFAULT_ACCOUNT,
+};
+
+const stack = new Stack(app, 'eks-cicd-codebuild-stack', { env });
+
+new AwsEksCicdCodebuildStack(stack, 'demo');
+
+
