@@ -18,6 +18,7 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    //create new default vpc if default not exist else use default
     function getOrCreateVpc(scope: Construct): ec2.IVpc {
       // use an existing vpc or create a new one
       return scope.node.tryGetContext('use_default_vpc') === '1'
@@ -27,7 +28,10 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
           new ec2.Vpc(scope, 'Vpc', { maxAzs: 3, natGateways: 1 });
     }
     
+    //extract vpc
     const vpc = getOrCreateVpc(this);
+
+    //create new eks cluster version 1.23
     const cluster = new eks.Cluster(this, 'Cluster',{
       vpc,
       version: eks.KubernetesVersion.V1_23,
@@ -37,12 +41,15 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
     //fetch current stack name
     const stackName = Stack.of(this).stackName;
 
+    //create new ecr repo
     const ecrRepo = new ecr.Repository(this , 'EcrRepo');
 
+    //create new code commit repo
     const repository = new codecommit.Repository(this, 'CodeCommitRepo', {
       repositoryName: `${stackName}-repo`,
     });
 
+    //create new codebuild project
     const project = new codebuild.Project(this, 'MyProject',{
       projectName: `${stackName}`,
       source: codebuild.Source.codeCommit({ repository }),
@@ -60,6 +67,8 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
           value: `${ecrRepo.repositoryUri}`,
         },
       },
+
+      //buildspec file
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
         phases: {
@@ -90,10 +99,12 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
       }),
     });
 
+    //code commit target branch
     repository.onCommit('OnCommit', {
       target: new targets.CodeBuildProject(project),
     });
 
+    //create repo grant IAM permission
     ecrRepo.grantPullPush(project.role!);
     cluster.awsAuth.addMastersRole(project.role!);
     project.addToRolePolicy(new iam.PolicyStatement({
@@ -101,6 +112,7 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
       resources: [`${cluster.clusterArn}`],
     }));
 
+    //output cfn stack
     new CfnOutput(this, 'CodeCommitRepoName', {value: `${repository.repositoryName}`});
     new CfnOutput(this, 'CodeCommitRepoArn', {value: `${repository.repositoryArn}`});
     new CfnOutput(this, 'CodeCommitCloneUrlSsh', { value: `${repository.repositoryCloneUrlSsh}` });
@@ -108,15 +120,5 @@ export class AwsEksCicdCodebuildStack extends cdk.Stack {
   }
 }
 
-const app = new App();
-
-const env = {
-  region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
-  account: process.env.CDK_DEFAULT_ACCOUNT,
-};
-
-const stack = new Stack(app, 'eks-cicd-codebuild-stack', { env });
-
-new AwsEksCicdCodebuildStack(stack, 'demo');
 
 
