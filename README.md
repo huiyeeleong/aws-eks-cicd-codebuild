@@ -146,7 +146,3 @@ A: Yes. You can import the existing Amazon EKS cluster with **eks.Cluster.fromCl
 Q: The *cdk destroy* fails due to dependencies that cannot be deleted
 
 A: The flask app dependencies must be deleted with kubectl before the *cdk destroy*
-
-## License
-
-This library is licensed under the MIT-0 License. See the [LICENSE](/LICENSE) file.
